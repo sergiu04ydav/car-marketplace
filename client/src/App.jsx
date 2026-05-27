@@ -1,122 +1,84 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Auth from './pages/Auth';
+import Dashboard from './pages/Dashboard';
+import GoogleAuthSuccess from './pages/GoogleAuthSuccess';
+import Home from './pages/Home';
+import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+/* ── Rută protejată: dacă nu ești logat → /login ─────────── */
+function PrivateRoute({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <div style={{ minHeight: '100vh', background: '#f8fafc' }} />;
+  return user ? children : <Navigate to="/login" replace />;
 }
 
-export default App
+/* ── Rută admin: dacă nu ești admin → /dashboard ─────────── */
+function AdminRoute({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <div style={{ minHeight: '100vh', background: '#f8fafc' }} />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+/* ── Rută publică: dacă ești logat → /dashboard ─────────── */
+function PublicRoute({ children }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <div style={{ minHeight: '100vh', background: '#f8fafc' }} />;
+  return !user ? children : <Navigate to="/dashboard" replace />;
+}
+
+/* ── Routes ───────────────────────────────────────────────── */
+function AppRoutes() {
+  const { user, ready } = useAuth();
+  if (!ready) return <div style={{ minHeight: '100vh', background: '#f8fafc' }} />;
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={user ? <Navigate to="/dashboard" replace /> : <Home />}
+      />
+
+      <Route path="/login"           element={<PublicRoute><Auth /></PublicRoute>} />
+      <Route path="/register"        element={<PublicRoute><Auth /></PublicRoute>} />
+      <Route path="/forgot-password" element={<Auth />} />
+      <Route path="/reset-password"  element={<Auth />} />
+
+      <Route path="/auth/google/success" element={<GoogleAuthSuccess />} />
+
+      <Route
+        path="/dashboard"
+        element={<PrivateRoute><Dashboard /></PrivateRoute>}
+      />
+
+      <Route
+        path="/profile"
+        element={<PrivateRoute><Profile /></PrivateRoute>}
+      />
+
+      {/* Profil public — vizibil fără autentificare */}
+      <Route path="/profile/:userId" element={<Profile />} />
+
+      {/* Admin Panel — accesibil doar de admini */}
+      <Route
+        path="/admin"
+        element={<AdminRoute><AdminPanel /></AdminRoute>}
+      />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}

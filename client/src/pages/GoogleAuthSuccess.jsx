@@ -1,0 +1,71 @@
+import { useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { persistUser } from '../utils/api';
+import '../style/Auth.css';
+
+function getCallbackState(searchParams) {
+  const error = searchParams.get('error');
+  if (error) {
+    return {
+      status: 'Google login failed. Redirecting…',
+      redirectTo: `/login?error=${error}`,
+      user: null,
+    };
+  }
+
+  const rawUser = searchParams.get('user');
+  if (!rawUser) {
+    return {
+      status: 'Something went wrong. Redirecting…',
+      redirectTo: '/login',
+      user: null,
+    };
+  }
+
+  try {
+    return {
+      status: 'Signing you in…',
+      redirectTo: '/',
+      user: JSON.parse(decodeURIComponent(rawUser)),
+    };
+  } catch {
+    return {
+      status: 'Failed to process login. Redirecting…',
+      redirectTo: '/login',
+      user: null,
+    };
+  }
+}
+
+export default function GoogleAuthSuccess() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const callbackState = useMemo(() => getCallbackState(searchParams), [searchParams]);
+
+  useEffect(() => {
+    if (callbackState.user) {
+      persistUser(callbackState.user);
+      // Redirect back to the page the user originally wanted to visit
+      const redirectTo = sessionStorage.getItem('authRedirectFrom') || '/';
+      sessionStorage.removeItem('authRedirectFrom');
+      navigate(redirectTo, { replace: true });
+      return undefined;
+    }
+
+    const timer = setTimeout(
+      () => navigate(callbackState.redirectTo, { replace: true }),
+      1500,
+    );
+    return () => clearTimeout(timer);
+  }, [callbackState, navigate]);
+
+  return (
+    <div className="auth-oauth-callback">
+      <div className="auth-oauth-callback__card">
+        <Loader2 size={32} className="auth-oauth-callback__spin" aria-hidden />
+        <p className="auth-oauth-callback__text">{callbackState.status}</p>
+      </div>
+    </div>
+  );
+}
